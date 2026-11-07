@@ -1,4 +1,4 @@
-# Builds the layer from the GitHub repo, for 64-bit and 32-bit games.
+# Builds the layer for 64-bit and 32-bit games.
 # Usage: cd packaging/arch && makepkg -si
 # The lib32 package needs the [multilib] repository enabled in /etc/pacman.conf.
 
@@ -9,9 +9,12 @@ pkgrel=1
 pkgdesc="Vulkan layer that puts allocations in system RAM when VRAM is full instead of crashing"
 arch=(x86_64)
 url="https://github.com/jartificer/vram-fallback-layer"
-license=(unknown)
+license=(LicenseRef-none)  # private, no license
 makedepends=(git cmake vulkan-headers lib32-gcc-libs lib32-glibc)
-source=("vram-fallback-layer::git+${url}.git")
+# Builds from the local checkout this PKGBUILD sits in (committed changes
+# only), so the private GitHub repo isn't fetched again and no credentials
+# are needed.
+source=("vram-fallback-layer::git+file://$(realpath "${startdir:-.}/../..")")
 sha256sums=(SKIP)
 
 pkgver() {

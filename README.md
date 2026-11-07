@@ -67,8 +67,9 @@ That setup is untested.
 
 ### Install
 
-The PKGBUILD in `packaging/arch/` builds the latest `main` from GitHub. It
-makes two packages:
+The PKGBUILD in `packaging/arch/` builds from the clone it sits in, using
+the latest commit there. It doesn't download anything, so the private
+repository needs no extra credentials. It makes two packages:
 
 - `vram-fallback-layer-git` installs `/usr/lib/libVkLayer_vram_fallback.so`
   and the manifest
@@ -91,9 +92,13 @@ cd vram-fallback-layer/packaging/arch
 makepkg -si
 ```
 
+Cloning a private repository needs your GitHub login. The easiest way is
+`sudo pacman -S github-cli` and then `gh auth login`. You can also use an SSH
+clone URL.
+
 `makepkg -si` builds both packages and asks pacman to install them. To
-update, run `makepkg -si` again in that folder. It always rebuilds from the
-latest commit. To remove both packages:
+update, run `git pull` and then `makepkg -si` again in that folder.
+Uncommitted changes aren't included in the package. To remove both packages:
 
 ```sh
 sudo pacman -R lib32-vram-fallback-layer-git vram-fallback-layer-git
