@@ -1,1 +1,167 @@
-# VRAM-Fallback-Layer
+# VK_LAYER_VRAM_fallback
+
+A Vulkan layer that does what Windows does for free: when a game runs out of
+VRAM, put the overflow in system RAM instead of crashing.
+
+On Linux, NVIDIA's driver returns `VK_ERROR_OUT_OF_DEVICE_MEMORY` once VRAM is
+full. Many games treat that as fatal. This layer sits between the game (or
+DXVK/VKD3D-Proton) and the driver. When a device-local allocation fails, it
+quietly retries in system memory that the GPU can still read and write, and
+hands that back as if nothing happened. Expect lower frame rates and stutter
+once it kicks in, because the GPU then reads that data over PCIe. Windows has
+the same cost.
+
+**Status: prototype.** It's tested on a simulated 256 MiB NVIDIA card (see
+[Testing](#testing)). It hasn't been tried on real NVIDIA hardware or with
+real games yet.
+
+## Install and use
+
+```sh
+sudo apt install cmake g++ libvulkan-dev      # or your distro's equivalent
+./install.sh                                   # installs for your user only
+```
+
+The layer does nothing until a program is started with `VRAM_FALLBACK=1`. In
+Steam, set a game's launch options to:
+
+```
+VRAM_FALLBACK=1 %command%
+```
+
+Run `./uninstall.sh` to remove it.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `VRAM_FALLBACK=1` | off | Turn the layer on for this process. |
+| `DISABLE_VRAM_FALLBACK=1` | | Force it off. |
+| `VRAM_FALLBACK_HEADROOM_MB` | `0` | Keep this much VRAM free. Once the driver's budget says less than this is left, new VRAM allocations go straight to system RAM. Try `256` to `512` if games still crash with the layer on (see below). |
+| `VRAM_FALLBACK_LOG` | `1` | `0` is quiet, `1` logs each fallback to stderr, `2` is verbose. |
+
+With logging on, you'll see lines like this in the game's log (for Proton,
+use `PROTON_LOG=1`):
+
+```
+[vram-fallback]   type 1 (heap 0, flags 0x1) -> falls back to type 0 (heap 1, flags 0x0)
+[vram-fallback] VRAM full: 64 MiB type 1 -> system type 0 (now 64 MiB in system RAM)
+```
+
+If no `VRAM full` lines show up before a crash, the crash didn't come from a
+failed `vkAllocateMemory`, and only the headroom setting can help.
+
+Steam's Linux runtime container normally picks up layers from
+`~/.local/share/vulkan/implicit_layer.d`, and `/home` is visible inside it, so
+the user install should work there. Flatpak Steam can't see that folder. For
+Flatpak you'd need to install the layer inside the Flatpak's data directory.
+That setup is untested.
+
+## How it works
+
+1. **Retry in system memory.** When `vkAllocateMemory` asks for a
+   `DEVICE_LOCAL` type and gets `VK_ERROR_OUT_OF_DEVICE_MEMORY`, the layer
+   retries with a memory type on a non-device-local heap. Imports
+   (dma-buf, host pointers) are never redirected.
+2. **Keep the game's assumptions true.** The fallback type must keep any
+   `HOST_VISIBLE` and `HOST_COHERENT` flags the original had, so ReBAR/upload
+   memory that the game maps stays mappable. Among the valid types, the layer
+   prefers plain GPU-only system memory, which NVIDIA exposes as a type with no
+   flags. It avoids `HOST_CACHED` unless the original type had it.
+3. **Respect `memoryTypeBits`.** This is the hard part. `vkAllocateMemory`
+   doesn't say which buffers or images will live in the memory. DXVK,
+   VKD3D-Proton and VMA allocate large blocks per memory type and then pack any
+   resource that accepts that type into them. NVIDIA only lets optimal-tiling
+   images (textures, render targets) live in two types: VRAM, and the plain
+   system type. Picking the "upload" type for a texture block would be invalid.
+   So the layer:
+   - creates a few typical probe buffers and images at `vkCreateDevice`,
+   - watches every `vkGet*MemoryRequirements*` call,
+   - for each type, remembers which other types every resource that accepts
+     it also accepts (a running AND of the masks),
+   - only falls back to a type in that set. For dedicated allocations
+     (`VkMemoryDedicatedAllocateInfo`), it uses that exact resource's mask.
+4. **Safety net at bind time.** If a resource with an unusually narrow mask
+   later gets bound into fallback memory it can't use, `vkBind*Memory`
+   returns `VK_ERROR_OUT_OF_DEVICE_MEMORY` instead of letting the GPU corrupt
+   memory. That's a legal result, and allocators handle it by trying
+   elsewhere.
+5. **Headroom mode** (`VRAM_FALLBACK_HEADROOM_MB`). The layer turns on
+   `VK_EXT_memory_budget` when the driver supports it, and reads real VRAM
+   usage, including other processes such as the compositor. When free VRAM drops
+   below the headroom, new allocations go to system RAM *before* VRAM is
+   exhausted.
+
+## Trade-offs and limits
+
+- **The crash may not be a failed allocation.** The NVIDIA driver also needs
+  VRAM for its own use (shaders, command buffers, page tables), and those
+  allocations don't go through `vkAllocateMemory`. If the game fills VRAM to
+  the last byte, the driver itself can fail. That shows up as a device-lost
+  error or an Xid in `dmesg`, which no layer can catch. Headroom mode is the
+  mitigation: it leaves the driver some room.
+- **DXVK already does part of this.** DXVK falls back to system memory for
+  many resources on its own, and VKD3D-Proton does for some. So this layer
+  helps most with native Vulkan games, with VKD3D's dedicated render-target
+  allocations, and through headroom mode. Gains on DXVK titles may be small.
+- **Nothing moves back.** Once a block lands in system RAM, it stays there
+  until the game frees it. Windows can migrate memory back into VRAM. This
+  layer can't, because the GPU addresses are fixed once resources are bound.
+- **Budget numbers are passed through unchanged.** Games that read
+  `VK_EXT_memory_budget` still see the real VRAM budget. They also count
+  fallback blocks as VRAM in their own bookkeeping, so they tend to
+  self-limit (lower texture streaming) a bit earlier. That's harmless. The
+  layer deliberately does *not* inflate the VRAM heap size, because that just
+  makes engines allocate more aggressively.
+- **System memory is pinned.** The fallback memory is locked in RAM while
+  allocated. On a 16 GB machine, a few GB of spill is fine. A game that wants
+  10 GB more than the card has won't be.
+- **The type-mask learning is optimistic early on.** It's built from probes
+  and from what the game has asked so far. The bind-time check makes a later
+  surprise fail cleanly rather than corrupt anything.
+- **Driver 595 may change this.** The 595 beta release notes mention
+  "improved support for falling back to system memory when available video
+  memory is low". Try a current driver first. This layer is still useful if
+  the driver keeps returning out-of-memory errors.
+
+## Testing
+
+No NVIDIA GPU was available, so the tests run on Mesa's software Vulkan driver
+(lavapipe). A test-only layer, `VK_LAYER_TEST_nvsim` in
+`test/nvsim_layer.cpp`, makes lavapipe look like a 256 MiB NVIDIA card. It
+gives lavapipe NVIDIA's memory-type layout, NVIDIA's image `memoryTypeBits`
+(types 0 and 1 only), a working memory budget, and an out-of-memory error once
+the fake VRAM is full.
+
+```sh
+cmake -S . -B build && cmake --build build -j
+test/run_tests.sh       # needs mesa-vulkan-drivers and vulkan-validationlayers
+```
+
+The test app (`test/vram_test.cpp`) acts like an engine. It allocates
+8 × 64 MiB VRAM blocks on the 256 MiB card, puts a buffer and an
+optimal-tiling texture into an overflow block, and checks GPU-written data
+byte for byte. It then maps a ReBAR allocation while VRAM is full, makes a
+dedicated 64 MiB render-target allocation, and checks that VRAM gets used
+again after everything is freed. The Khronos validation layer sits between the
+fallback layer and the simulator, so it checks every bind against the real
+type masks.
+
+| Run | Result |
+|---|---|
+| No fallback layer | 4 of 8 blocks, the ReBAR allocation, and the dedicated allocation fail with OUT_OF_DEVICE_MEMORY (expected) |
+| Fallback layer + validation | All pass, 0 validation errors |
+| Fallback layer, 64 MiB headroom | All pass. VRAM use stops at 192 MiB, as intended |
+| Fallback layer without validation | All pass |
+| Implicit layer, `VRAM_FALLBACK=1` set / unset | Active / inactive |
+
+These runs also confirmed that the tests catch mistakes. With the type-mask
+logic deliberately broken, the bind-time check refused both bad image binds.
+With that check disabled too, validation reported
+`VUID-vkBindImageMemory-memory-01047` both times.
+
+## Next steps on real hardware
+
+1. Run `vulkaninfo` and check that the NVIDIA memory types look like the
+   simulator's. The layer logs the mapping it picked at startup.
+2. Try a game that crashes today, with `VRAM_FALLBACK=1 VRAM_FALLBACK_LOG=2`.
+   Check whether `VRAM full` lines appear.
+3. If it still crashes with no such lines, try `VRAM_FALLBACK_HEADROOM_MB=384`.

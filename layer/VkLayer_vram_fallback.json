@@ -1,0 +1,15 @@
+{
+  "file_format_version": "1.2.0",
+  "layer": {
+    "name": "VK_LAYER_VRAM_fallback",
+    "type": "GLOBAL",
+    "library_path": "./libVkLayer_vram_fallback.so",
+    "api_version": "1.3.0",
+    "implementation_version": "1",
+    "description": "Retries failed VRAM allocations in GPU-accessible system RAM",
+    "functions": {
+      "vkGetInstanceProcAddr": "vram_fallback_GetInstanceProcAddr",
+      "vkGetDeviceProcAddr": "vram_fallback_GetDeviceProcAddr"
+    }
+  }
+}
