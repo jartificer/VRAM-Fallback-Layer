@@ -1,0 +1,56 @@
+# Builds the layer from the GitHub repo, for 64-bit and 32-bit games.
+# Usage: cd packaging/arch && makepkg -si
+# The lib32 package needs the [multilib] repository enabled in /etc/pacman.conf.
+
+pkgbase=vram-fallback-layer-git
+pkgname=(vram-fallback-layer-git lib32-vram-fallback-layer-git)
+pkgver=r2.f871e5d
+pkgrel=1
+pkgdesc="Vulkan layer that puts allocations in system RAM when VRAM is full instead of crashing"
+arch=(x86_64)
+url="https://github.com/jartificer/vram-fallback-layer"
+license=(unknown)
+makedepends=(git cmake vulkan-headers lib32-gcc-libs lib32-glibc)
+source=("vram-fallback-layer::git+${url}.git")
+sha256sums=(SKIP)
+
+pkgver() {
+  cd vram-fallback-layer
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cmake -S vram-fallback-layer -B build64 \
+    -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib \
+    -DVRAM_FALLBACK_TESTS=OFF
+  cmake --build build64
+
+  CFLAGS="$CFLAGS -m32" CXXFLAGS="$CXXFLAGS -m32" LDFLAGS="$LDFLAGS -m32" \
+  cmake -S vram-fallback-layer -B build32 \
+    -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib32 \
+    -DVRAM_FALLBACK_TESTS=OFF
+  cmake --build build32
+}
+
+package_vram-fallback-layer-git() {
+  depends=(vulkan-icd-loader gcc-libs glibc)
+  optdepends=('lib32-vram-fallback-layer-git: support for 32-bit games')
+  provides=(vram-fallback-layer)
+  conflicts=(vram-fallback-layer)
+
+  DESTDIR="$pkgdir" cmake --install build64
+  # One manifest serves both architectures: its library_path is a bare file
+  # name, so the Vulkan loader finds /usr/lib or /usr/lib32 as appropriate.
+  install -Dm644 vram-fallback-layer/layer/VkLayer_vram_fallback_implicit.json \
+    "$pkgdir/usr/share/vulkan/implicit_layer.d/VkLayer_vram_fallback.json"
+  install -Dm644 vram-fallback-layer/README.md "$pkgdir/usr/share/doc/$pkgbase/README.md"
+}
+
+package_lib32-vram-fallback-layer-git() {
+  pkgdesc+=" (32-bit)"
+  depends=(vram-fallback-layer-git lib32-vulkan-icd-loader lib32-gcc-libs lib32-glibc)
+  provides=(lib32-vram-fallback-layer)
+  conflicts=(lib32-vram-fallback-layer)
+
+  DESTDIR="$pkgdir" cmake --install build32
+}

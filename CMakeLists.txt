@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 project(vram_fallback_layer CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -8,10 +8,12 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-find_package(Vulkan REQUIRED)
+# The layer only needs the Vulkan headers, not libvulkan, which keeps 32-bit
+# builds simple (CXXFLAGS=-m32, no lib32 loader lookup needed).
+find_path(VULKAN_HEADERS_DIR vulkan/vk_layer.h REQUIRED)
 
 add_library(VkLayer_vram_fallback SHARED src/vram_fallback.cpp)
-target_include_directories(VkLayer_vram_fallback PRIVATE ${Vulkan_INCLUDE_DIRS})
+target_include_directories(VkLayer_vram_fallback PRIVATE ${VULKAN_HEADERS_DIR})
 target_compile_options(VkLayer_vram_fallback PRIVATE -Wall -Wextra -Wno-missing-field-initializers)
 target_link_options(VkLayer_vram_fallback PRIVATE -Wl,--no-undefined)
 find_package(Threads REQUIRED)
@@ -23,6 +25,7 @@ configure_file(layer/VkLayer_vram_fallback_implicit.json ${CMAKE_BINARY_DIR}/imp
 
 option(VRAM_FALLBACK_TESTS "Build the simulator layer and test app" ON)
 if(VRAM_FALLBACK_TESTS)
+  find_package(Vulkan REQUIRED)
   add_library(VkLayer_test_nvsim SHARED test/nvsim_layer.cpp)
   target_include_directories(VkLayer_test_nvsim PRIVATE ${Vulkan_INCLUDE_DIRS})
   configure_file(test/VkLayer_test_nvsim.json ${CMAKE_BINARY_DIR}/VkLayer_test_nvsim.json COPYONLY)

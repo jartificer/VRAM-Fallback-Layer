@@ -17,10 +17,18 @@ real games yet.
 
 ## Install and use
 
+On **Arch Linux**, use the PKGBUILD. See [Arch Linux](#arch-linux) below.
+
+On other distros:
+
 ```sh
 sudo apt install cmake g++ libvulkan-dev      # or your distro's equivalent
 ./install.sh                                   # installs for your user only
 ```
+
+`install.sh` only builds the 64-bit layer. That covers native Linux games and
+64-bit Windows games under Proton. 32-bit Windows games load 32-bit Vulkan,
+and they need the 32-bit build that the Arch package provides.
 
 The layer does nothing until a program is started with `VRAM_FALLBACK=1`. In
 Steam, set a game's launch options to:
@@ -54,6 +62,87 @@ Steam's Linux runtime container normally picks up layers from
 the user install should work there. Flatpak Steam can't see that folder. For
 Flatpak you'd need to install the layer inside the Flatpak's data directory.
 That setup is untested.
+
+## Arch Linux
+
+### Install
+
+The PKGBUILD in `packaging/arch/` builds the latest `main` from GitHub. It
+makes two packages:
+
+- `vram-fallback-layer-git` installs `/usr/lib/libVkLayer_vram_fallback.so`
+  and the manifest
+  `/usr/share/vulkan/implicit_layer.d/VkLayer_vram_fallback.json`.
+- `lib32-vram-fallback-layer-git` installs
+  `/usr/lib32/libVkLayer_vram_fallback.so` for 32-bit games.
+
+The manifest names the library without a path, so the Vulkan loader picks
+`/usr/lib` or `/usr/lib32` to match the game.
+
+Enable the `[multilib]` repository in `/etc/pacman.conf` first (uncomment the
+`[multilib]` section, then run `sudo pacman -Syu`). It provides the 32-bit
+packages. Then:
+
+```sh
+sudo pacman -S --needed base-devel git cmake vulkan-headers \
+    vulkan-icd-loader lib32-vulkan-icd-loader lib32-gcc-libs lib32-glibc
+git clone https://github.com/jartificer/vram-fallback-layer
+cd vram-fallback-layer/packaging/arch
+makepkg -si
+```
+
+`makepkg -si` builds both packages and asks pacman to install them. To
+update, run `makepkg -si` again in that folder. It always rebuilds from the
+latest commit. To remove both packages:
+
+```sh
+sudo pacman -R lib32-vram-fallback-layer-git vram-fallback-layer-git
+```
+
+If the 32-bit build fails with errors about `-m32`, `bits/c++config.h` or
+`cannot find -lstdc++`, install the multilib toolchain with
+`sudo pacman -S multilib-devel` and try again.
+
+For your NVIDIA card you also need `nvidia-utils` (64-bit games) and
+`lib32-nvidia-utils` (32-bit games). These come with the NVIDIA driver
+packages (`nvidia-open` or `nvidia-open-dkms`).
+
+Don't install with `install.sh` as well. You'd end up with two manifests for
+the same layer.
+
+### Use with Steam and Proton
+
+The `steam` package from `[multilib]` runs Proton games inside the Steam Linux
+Runtime container. The container picks up Vulkan layers installed in `/usr`.
+Set the game's launch options (right-click the game, then Properties, then
+General, then Launch Options):
+
+```
+VRAM_FALLBACK=1 %command%
+```
+
+To see whether the layer kicked in, add `PROTON_LOG=1`. Proton then writes
+`~/steam-<appid>.log`, where you can search for `[vram-fallback]`:
+
+```
+VRAM_FALLBACK=1 VRAM_FALLBACK_LOG=2 PROTON_LOG=1 %command%
+```
+
+For native Linux games, `VRAM_FALLBACK_LOG` output goes to the game's stderr.
+Launch Steam from a terminal to see it.
+
+To confirm Vulkan sees the layer outside Steam, run:
+
+```sh
+VRAM_FALLBACK=1 vulkaninfo --summary 2>&1 | grep -i vram
+```
+
+That needs `vulkan-tools`. It lists `VK_LAYER_VRAM_fallback`, and the layer prints an `active` line plus the memory
+types it picked, for each GPU.
+
+Flatpak Steam (`com.valvesoftware.Steam`) can't see `/usr/share/vulkan` on the
+host, so the package won't work there. Use the `steam` package from
+`[multilib]`.
 
 ## How it works
 
@@ -152,6 +241,12 @@ type masks.
 | Fallback layer, 64 MiB headroom | All pass. VRAM use stops at 192 MiB, as intended |
 | Fallback layer without validation | All pass |
 | Implicit layer, `VRAM_FALLBACK=1` set / unset | Active / inactive |
+| Same suite built as 32-bit (`-m32`) | All pass. The 32-bit validation layer wasn't available, so these runs relied on the app's own data checks |
+| One manifest with a bare library name, `.so` in both lib dirs | The 64-bit and 32-bit test apps each load the right one |
+
+The PKGBUILD's build and package steps were run by hand on Ubuntu and produce
+the file layout listed above. `makepkg` itself hasn't been run on a real Arch
+system.
 
 These runs also confirmed that the tests catch mistakes. With the type-mask
 logic deliberately broken, the bind-time check refused both bad image binds.
