@@ -1,0 +1,6 @@
+# A Vulkan layer is loaded by the Vulkan loader with dlopen(), by file name.
+# Nothing links against it, so it has no SONAME version and needs no
+# ldconfig trigger, like other Vulkan layers in Debian.
+vram-fallback-layer: lacks-ldconfig-trigger *
+vram-fallback-layer: package-name-doesnt-match-sonames *
+vram-fallback-layer: shared-library-lacks-version *
