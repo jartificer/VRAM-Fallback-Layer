@@ -9,11 +9,10 @@ pkgrel=1
 pkgdesc="Vulkan layer that puts allocations in system RAM when VRAM is full instead of crashing"
 arch=(x86_64)
 url="https://github.com/jartificer/vram-fallback-layer"
-license=(LicenseRef-none)  # private, no license
+license=(LicenseRef-none)  # no license yet
 makedepends=(git cmake vulkan-headers lib32-gcc-libs lib32-glibc)
 # Builds from the local checkout this PKGBUILD sits in (committed changes
-# only), so the private GitHub repo isn't fetched again and no credentials
-# are needed.
+# only), so there's nothing to download.
 source=("vram-fallback-layer::git+file://$(realpath "${startdir:-.}/../..")")
 sha256sums=(SKIP)
 
