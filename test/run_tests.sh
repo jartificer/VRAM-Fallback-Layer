@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Runs the test app on Mesa lavapipe, made to look like a 256 MiB NVIDIA card
 # by the nvsim layer, in four configurations. Usage: test/run_tests.sh [build-dir]
 set -u

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Small helpers shared by the layers in this repo.
 #pragma once
 

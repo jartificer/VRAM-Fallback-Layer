@@ -9,7 +9,7 @@ pkgrel=1
 pkgdesc="Vulkan layer that puts allocations in system RAM when VRAM is full instead of crashing"
 arch=(x86_64)
 url="https://github.com/jartificer/vram-fallback-layer"
-license=(LicenseRef-none)  # no license yet
+license=(GPL-3.0-or-later)
 makedepends=(git cmake vulkan-headers lib32-gcc-libs lib32-glibc)
 # Builds from the local checkout this PKGBUILD sits in (committed changes
 # only), so there's nothing to download.
@@ -46,6 +46,7 @@ package_vram-fallback-layer-git() {
   install -Dm644 vram-fallback-layer/layer/VkLayer_vram_fallback_implicit.json \
     "$pkgdir/usr/share/vulkan/implicit_layer.d/VkLayer_vram_fallback.json"
   install -Dm644 vram-fallback-layer/README.md "$pkgdir/usr/share/doc/$pkgbase/README.md"
+  install -Dm644 vram-fallback-layer/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
 
 package_lib32-vram-fallback-layer-git() {
@@ -55,4 +56,5 @@ package_lib32-vram-fallback-layer-git() {
   conflicts=(lib32-vram-fallback-layer)
 
   DESTDIR="$pkgdir" cmake --install build32
+  install -Dm644 vram-fallback-layer/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

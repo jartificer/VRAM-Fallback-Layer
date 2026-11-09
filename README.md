@@ -267,3 +267,12 @@ With that check disabled too, validation reported
 2. Try a game that crashes today, with `VRAM_FALLBACK=1 VRAM_FALLBACK_LOG=2`.
    Check whether `VRAM full` lines appear.
 3. If it still crashes with no such lines, try `VRAM_FALLBACK_HEADROOM_MB=384`.
+
+## License
+
+Copyright (C) 2026 Radu
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See [LICENSE](LICENSE) for the full text.

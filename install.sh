@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Builds the layer and installs it for the current user only.
 # The layer stays off until a program is started with VRAM_FALLBACK=1.
 set -euo pipefail

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // VK_LAYER_VRAM_fallback
 //
 // When a game asks for device-local (VRAM) memory and the driver answers

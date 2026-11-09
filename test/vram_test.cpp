@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Test app: behaves like a game engine that runs out of VRAM.
 // Run with the nvsim layer (fake 256 MiB NVIDIA card on lavapipe), with or
 // without the fallback layer, and optionally the Khronos validation layer.

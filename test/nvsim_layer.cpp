@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // VK_LAYER_TEST_nvsim  (test only)
 //
 // Makes a software Vulkan driver (Mesa lavapipe, which has a single memory
