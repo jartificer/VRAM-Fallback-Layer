@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Builds .deb packages of the layer from the latest commit of this checkout.
 #
 #   packaging/debian/build-deb.sh            # 64-bit (amd64) package
