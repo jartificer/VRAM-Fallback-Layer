@@ -11,9 +11,9 @@ hands that back as if nothing happened. Expect lower frame rates and stutter
 once it kicks in, because the GPU then reads that data over PCIe. Windows has
 the same cost.
 
-**Status: prototype.** It's tested on a simulated 256 MiB NVIDIA card (see
-[Testing](#testing)). It hasn't been tried on real NVIDIA hardware or with
-real games yet.
+**Status: prototype.** It has been tested successfully on a real NVIDIA card
+with 4 GB of VRAM, and on a simulated 256 MiB NVIDIA card (see
+[Testing](#testing)).
 
 ## Install and use
 
@@ -218,7 +218,14 @@ host, so the package won't work there. Use the `steam` package from
 
 ## Testing
 
-No NVIDIA GPU was available, so the tests run on Mesa's software Vulkan driver
+### Real hardware
+
+The layer has been tested successfully on a real NVIDIA card with 4 GB of
+VRAM.
+
+### Simulated card
+
+The automated tests run without an NVIDIA GPU, on Mesa's software Vulkan driver
 (lavapipe). A test-only layer, `VK_LAYER_TEST_nvsim` in
 `test/nvsim_layer.cpp`, makes lavapipe look like a 256 MiB NVIDIA card. It
 gives lavapipe NVIDIA's memory-type layout, NVIDIA's image `memoryTypeBits`
@@ -258,7 +265,7 @@ logic deliberately broken, the bind-time check refused both bad image binds.
 With that check disabled too, validation reported
 `VUID-vkBindImageMemory-memory-01047` both times.
 
-## Next steps on real hardware
+## Checking it on your own card
 
 1. Run `vulkaninfo` and check that the NVIDIA memory types look like the
    simulator's. The layer logs the mapping it picked at startup.
