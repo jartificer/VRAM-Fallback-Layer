@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DVRAM_FALLBACK_TESTS=OFF
+
+# One manifest serves every architecture: its library_path is a bare file
+# name, so the Vulkan loader finds /usr/lib/<multiarch triplet>/ for the
+# process it is loaded into. The file is identical in the amd64 and i386
+# packages, which Multi-Arch: same requires.
+override_dh_auto_install:
+	dh_auto_install
+	install -Dm644 layer/VkLayer_vram_fallback_implicit.json \
+	  debian/vram-fallback-layer/usr/share/vulkan/implicit_layer.d/VkLayer_vram_fallback.json
+
+# The layer exports only Vulkan entry points and nothing links against it,
+# so there is no shlibs file or symbols file to generate.
+override_dh_makeshlibs:
+	dh_makeshlibs --no-scripts -X libVkLayer_vram_fallback.so
+
+# Dependencies are listed by hand in debian/control. dh_shlibdeps would pick
+# the amd64 multilib packages (libc6-i386, lib32stdc++6) for an i386 cross
+# build instead of libc6:i386 and libstdc++6:i386, and the package is built
+# on the system it is installed on anyway.
+override_dh_shlibdeps:

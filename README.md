@@ -19,6 +19,9 @@ with 4 GB of VRAM, and on a simulated 256 MiB NVIDIA card (see
 
 On **Arch Linux**, use the PKGBUILD. See [Arch Linux](#arch-linux) below.
 
+On **Debian, Ubuntu, Mint and Pop!_OS**, build a `.deb`. See
+[Debian and Ubuntu](#debian-and-ubuntu) below.
+
 On other distros:
 
 ```sh
@@ -28,7 +31,7 @@ sudo apt install cmake g++ libvulkan-dev      # or your distro's equivalent
 
 `install.sh` only builds the 64-bit layer. That covers native Linux games and
 64-bit Windows games under Proton. 32-bit Windows games load 32-bit Vulkan,
-and they need the 32-bit build that the Arch package provides.
+and they need the 32-bit build that the Arch and Debian packages provide.
 
 The layer does nothing until a program is started with `VRAM_FALLBACK=1`. In
 Steam, set a game's launch options to:
@@ -144,6 +147,58 @@ Flatpak Steam (`com.valvesoftware.Steam`) can't see `/usr/share/vulkan` on the
 host, so the package won't work there. Use the `steam` package from
 `[multilib]`.
 
+## Debian and Ubuntu
+
+### Build the package
+
+`packaging/debian/build-deb.sh` builds `.deb` files from the latest commit of
+the clone it sits in. Like the PKGBUILD, it doesn't download anything and
+leaves out uncommitted changes. The Debian packaging files themselves are in
+`packaging/debian/debian/`.
+
+```sh
+sudo apt install build-essential debhelper cmake libvulkan-dev git
+sudo apt install crossbuild-essential-i386     # only for 32-bit games
+cd vram-fallback-layer
+packaging/debian/build-deb.sh --i386           # leave out --i386 for 64-bit only
+```
+
+The packages land in `packaging/debian/out/`, named after the commit, for
+example `vram-fallback-layer_0~r8.491ceba_amd64.deb` and the matching
+`_i386.deb`. Each one installs:
+
+- the library in `/usr/lib/x86_64-linux-gnu/` or `/usr/lib/i386-linux-gnu/`
+- the manifest
+  `/usr/share/vulkan/implicit_layer.d/VkLayer_vram_fallback.json`, which is
+  the same file in both packages.
+
+As on Arch, the manifest names the library without a path, so the Vulkan
+loader picks the 64-bit or 32-bit copy to match the game.
+
+### Install
+
+```sh
+sudo dpkg --add-architecture i386               # Steam has usually done this already
+sudo apt install ./packaging/debian/out/vram-fallback-layer_*_amd64.deb \
+                 ./packaging/debian/out/vram-fallback-layer_*_i386.deb
+```
+
+To update, run `git pull`, build again and install the new files. Remove the
+old ones from `out/` first, or the wildcards above match several versions. To
+remove the layer:
+
+```sh
+sudo apt remove vram-fallback-layer:amd64 vram-fallback-layer:i386
+```
+
+For your NVIDIA card, the 32-bit package needs the driver's 32-bit Vulkan
+libraries too (`libnvidia-gl-<version>:i386` on Ubuntu). The Steam setup
+normally installs them.
+
+Don't install with `install.sh` as well. You'd end up with two manifests for
+the same layer. Steam and Proton are set up the same way as on Arch, see
+[Use with Steam and Proton](#use-with-steam-and-proton).
+
 ## How it works
 
 1. **Retry in system memory.** When `vkAllocateMemory` asks for a
@@ -254,6 +309,13 @@ type masks.
 The PKGBUILD's build and package steps were run by hand on Ubuntu and produce
 the file layout listed above. `makepkg` itself hasn't been run on a real Arch
 system.
+
+`build-deb.sh --i386` was run on Ubuntu 24.04 and builds both `.deb` files
+with no `lintian` complaints. With the amd64 package installed,
+`vulkaninfo` loads the layer when `VRAM_FALLBACK=1` is set and not otherwise.
+The i386 package was only inspected (32-bit library in
+`/usr/lib/i386-linux-gnu/`, dependencies on the i386 libraries), not
+installed.
 
 These runs also confirmed that the tests catch mistakes. With the type-mask
 logic deliberately broken, the bind-time check refused both bad image binds.

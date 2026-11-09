@@ -1,0 +1,23 @@
+Source: vram-fallback-layer
+Section: libs
+Priority: optional
+Maintainer: Radu Mailat <49567026+jartificer@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13), cmake, libvulkan-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/jartificer/vram-fallback-layer
+Rules-Requires-Root: no
+
+Package: vram-fallback-layer
+Architecture: amd64 i386
+Multi-Arch: same
+Depends: ${misc:Depends}, libc6, libgcc-s1, libstdc++6, libvulkan1
+Description: Vulkan layer that puts allocations in system RAM when VRAM is full
+ When a device-local Vulkan allocation fails because VRAM is full, this
+ implicit layer retries it in GPU-accessible system memory instead of
+ returning VK_ERROR_OUT_OF_DEVICE_MEMORY, so games slow down instead of
+ crashing.
+ .
+ The layer is installed as an implicit layer but stays off until a program
+ is started with VRAM_FALLBACK=1.
+ .
+ Install the i386 build of this package as well for 32-bit games.
